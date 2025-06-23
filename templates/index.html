@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Assistente de Voz com VLibras</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: start; height: 100vh; background-color: #f4f4f9; margin-top: 40px; }
+        .controls { display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        #output { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background-color: #fafafa; min-height: 50px; width: 300px; }
+        button { font-size: 16px; padding: 12px 24px; border-radius: 8px; border: none; background-color: #007aff; color: white; cursor: pointer; transition: background-color 0.2s; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Assistente de Voz com VLibras</h1>
+    <div class="controls">
+        <p>Clique no botão e diga um comando.</p>
+        <button id="start-btn">Ouvir Comando</button>
+        <div id="output">
+            <p><strong>Você disse:</strong> <span id="user-command">...</span></p>
+            <p><strong>Resultado:</strong> <span id="assist-result">...</span></p>
+        </div>
+    </div>
+    
+    <!-- VLibras Widget -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>
+        new window.VLibras.Widget();
+    </script>
+
+    <!-- Scripts da Aplicação -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startBtn = document.getElementById('start-btn');
+            const userCommandSpan = document.getElementById('user-command');
+            const assistResultSpan = document.getElementById('assist-result');
+            
+            // A API do widget não expõe um método direto para enviar texto.
+            // O widget funciona lendo o conteúdo da página.
+            // A melhor abordagem é garantir que o resultado seja claro na tela
+            // para que o usuário possa usar o widget para traduzi-lo.
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Seu navegador não suporta a gravação de áudio.');
+                startBtn.disabled = true;
+                return;
+            }
+
+            let mediaRecorder;
+            let audioChunks = [];
+            let isRecording = false;
+
+            startBtn.addEventListener('click', () => {
+                if (isRecording) {
+                    mediaRecorder.stop();
+                } else {
+                    startRecording();
+                }
+            });
+
+            function startRecording() {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        const options = { mimeType: 'audio/webm;codecs=opus' };
+                        mediaRecorder = new MediaRecorder(stream, options);
+                        
+                        mediaRecorder.ondataavailable = event => {
+                            audioChunks.push(event.data);
+                        };
+
+                        mediaRecorder.onstart = () => {
+                            isRecording = true;
+                            startBtn.textContent = 'Parar Gravação';
+                            userCommandSpan.textContent = 'Gravando...';
+                            assistResultSpan.textContent = '...';
+                            audioChunks = [];
+                        };
+                        
+                        mediaRecorder.onstop = () => {
+                            isRecording = false;
+                            startBtn.textContent = 'Enviar Áudio';
+                            startBtn.disabled = true;
+                            userCommandSpan.textContent = 'Enviando...';
+
+                            const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+                            sendAudioToServer(audioBlob);
+                            
+                            stream.getTracks().forEach(track => track.stop());
+                        };
+
+                        mediaRecorder.start();
+
+                    }).catch(err => {
+                        console.error("Erro ao obter mídia do usuário:", err);
+                        alert(`Erro ao acessar o microfone: ${err.message}`);
+                    });
+            }
+
+            async function sendAudioToServer(audioBlob) {
+                const formData = new FormData();
+                formData.append('audio_data', audioBlob);
+
+                try {
+                    const response = await fetch('/recognize', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        userCommandSpan.textContent = data.transcript || 'Nenhum texto reconhecido.';
+                        assistResultSpan.textContent = data.result || 'Nenhuma ação executada.';
+                        // O widget irá traduzir o texto que está visível na tela.
+                        // Não há uma chamada direta de API para o widget padrão.
+                    } else {
+                        throw new Error(data.error || 'Erro do servidor');
+                    }
+
+                } catch (error) {
+                    console.error('Erro ao enviar áudio:', error);
+                    assistResultSpan.textContent = `Erro de comunicação: ${error.message}`;
+                } finally {
+                    startBtn.textContent = 'Ouvir Comando';
+                    startBtn.disabled = false;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

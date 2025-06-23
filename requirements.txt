@@ -1,0 +1,9 @@
+SpeechRecognition
+gTTS
+pyaudio
+pygame
+Flask
+google-cloud-speech
+PyAudio
+pydub
+openai-whisper
