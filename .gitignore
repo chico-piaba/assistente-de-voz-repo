@@ -15,4 +15,5 @@ __pycache__/
 # Credentials
 # É altamente recomendável não versionar arquivos de credenciais.
 # Descomente a linha abaixo se você não quiser enviar seu arquivo de credenciais para o repositório.
-# "Python App Calc.json" 
+# "Python App Calc.json"
+credentials.json 

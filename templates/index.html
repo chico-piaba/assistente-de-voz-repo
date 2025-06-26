@@ -2,29 +2,181 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Assistente de Voz com VLibras</title>
+    <title>Assistente de Voz para Cálculos</title>
+    <!-- 
+    ===============================
+    ESTRUTURA DE ESTILOS (CSS)
+    ===============================
+    -->
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: start; height: 100vh; background-color: #f4f4f9; margin-top: 40px; }
-        .controls { display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #333; }
-        #output { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background-color: #fafafa; min-height: 50px; width: 300px; }
-        button { font-size: 16px; padding: 12px 24px; border-radius: 8px; border: none; background-color: #007aff; color: white; cursor: pointer; transition: background-color 0.2s; }
+        /* Animação para o botão de gravação */
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 10px 20px rgba(0, 122, 255, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0); }
+        }
+
+        /* Animação de "carregando" (spinner) */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Estilo geral do corpo da página */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start;
+            min-height: 100vh; 
+            background-color: #f0f2f5; 
+            margin: 0;
+            padding: 40px 20px;
+            box-sizing: border-box;
+        }
+        
+        /* Container principal que centraliza o conteúdo */
+        .container {
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 { color: #1c1e21; margin-bottom: 2rem; }
+        h2 { color: #333; margin-top: 0; font-size: 1.25rem; }
+        
+        /* Estilo base para os "cards" da interface */
+        .card {
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 24px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        .hidden { display: none !important; } /* Classe para esconder elementos */
+
+        /* Estilo dos botões */
+        button {
+            font-size: 16px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background-color: #007aff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px; /* Espaço entre o ícone e o texto */
+        }
         button:hover { background-color: #0056b3; }
-        button:disabled { background-color: #ccc; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        /* Estilos específicos para o botão de gravação */
+        #start-btn.recording { animation: pulse 2s infinite; }
+        #start-btn svg { transition: transform 0.3s ease; }
+        #start-btn.recording svg { transform: scale(1.1); }
+
+        /* Estilo do formulário de texto */
+        #text-form { display: flex; gap: 10px; }
+        #text-input {
+            flex-grow: 1; /* Ocupa o máximo de espaço possível */
+            font-size: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        #text-input:focus { border-color: #007aff; outline: none; }
+        
+        /* Estilos do card de resultado */
+        #output-card { text-align: left; }
+        #output-card .result-container { display: none; } /* Começa escondido */
+        #output-card .loader-container { display: none; } /* Começa escondido */
+        .loader-container { display: flex; align-items: center; justify-content: center; gap: 15px; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007aff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Estilo dos botões de ação no resultado */
+        .result-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        .result-actions button {
+            background-color: #e9e9eb;
+            color: #333;
+            padding: 8px 16px;
+        }
+        .result-actions button:hover {
+            background-color: #dcdce1;
+        }
     </style>
 </head>
 <body>
-    <h1>Assistente de Voz com VLibras</h1>
-    <div class="controls">
-        <p>Clique no botão e diga um comando.</p>
-        <button id="start-btn">Ouvir Comando</button>
-        <div id="output">
-            <p><strong>Você disse:</strong> <span id="user-command">...</span></p>
-            <p><strong>Resultado:</strong> <span id="assist-result">...</span></p>
+    <!-- 
+    ===============================
+    ESTRUTURA DO CORPO (HTML)
+    ===============================
+    -->
+    <div class="container">
+        <h1>Assistente de Cálculos</h1>
+        
+        <!-- CARD DE ENTRADA POR VOZ -->
+        <div class="card">
+            <h2>Por Voz</h2>
+            <p>Clique no botão e diga um comando.</p>
+            <button id="start-btn">
+                <!-- Ícone de microfone em SVG -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                <span id="btn-text">Ouvir Comando</span>
+            </button>
+        </div>
+
+        <!-- CARD DE ENTRADA POR TEXTO -->
+        <div class="card">
+            <h2>Por Texto</h2>
+            <form id="text-form">
+                <input type="text" id="text-input" placeholder="Ex: (15 + 5) * 2" required>
+                <button type="submit">Calcular</button>
+            </form>
+        </div>
+        
+        <!-- CARD DE RESULTADO (Começa escondido) -->
+        <div id="output-card" class="card hidden">
+            <!-- Container do "spinner" de carregamento -->
+            <div class="loader-container">
+                <div class="loader"></div>
+                <p>Processando...</p>
+            </div>
+            <!-- Container do resultado final -->
+            <div class="result-container">
+                <p><strong>Comando:</strong> <span id="user-command">...</span></p>
+                <p><strong>Resultado:</strong> <span id="assist-result">...</span></p>
+                <!-- Botões de ação do resultado -->
+                <div class="result-actions">
+                    <button id="repeat-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                        <span>Repetir</span>
+                    </button>
+                    <button id="edit-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        <span>Editar</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     
-    <!-- VLibras Widget -->
+    <!-- WIDGET DO VLIBRAS (Acessibilidade) -->
     <div vw class="enabled">
         <div vw-access-button class="active"></div>
         <div vw-plugin-wrapper>
@@ -36,102 +188,222 @@
         new window.VLibras.Widget();
     </script>
 
-    <!-- Scripts da Aplicação -->
+    <!-- 
+    ===============================
+    LÓGICA DA APLICAÇÃO (JAVASCRIPT)
+    ===============================
+    -->
     <script>
+        // O código só roda após o carregamento completo da página.
         document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- 1. SELEÇÃO DOS ELEMENTOS DA PÁGINA (DOM) ---
+            // Guardar os elementos em variáveis para acesso rápido e fácil.
             const startBtn = document.getElementById('start-btn');
+            const btnText = document.getElementById('btn-text');
             const userCommandSpan = document.getElementById('user-command');
             const assistResultSpan = document.getElementById('assist-result');
-            
-            // A API do widget não expõe um método direto para enviar texto.
-            // O widget funciona lendo o conteúdo da página.
-            // A melhor abordagem é garantir que o resultado seja claro na tela
-            // para que o usuário possa usar o widget para traduzi-lo.
+            const textForm = document.getElementById('text-form');
+            const textInput = document.getElementById('text-input');
+            const outputCard = document.getElementById('output-card');
+            const loaderContainer = outputCard.querySelector('.loader-container');
+            const resultContainer = outputCard.querySelector('.result-container');
+            const repeatBtn = document.getElementById('repeat-btn');
+            const editBtn = document.getElementById('edit-btn');
 
+            // --- 2. VARIÁVEIS DE ESTADO ---
+            // Variáveis que controlam o estado atual da aplicação.
+            let mediaRecorder;      // Objeto que gerencia a gravação do áudio.
+            let audioChunks = [];   // Armazena os pedaços do áudio gravado.
+            let isRecording = false;// Flag para saber se a gravação está ativa.
+            let lastSpokenResult = '';// Armazena o último resultado falado para a função "Repetir".
+            let lastTranscript = '';  // Armazena o último texto transcrito para a função "Editar".
+
+            // --- 3. GERENCIAMENTO DA INTERFACE (UI) ---
+            // Funções que manipulam a aparência da página.
+
+            // Mostra o card de resultado com a animação de "carregando".
+            function showLoading(commandText) {
+                outputCard.classList.remove('hidden');
+                resultContainer.style.display = 'none';
+                loaderContainer.style.display = 'flex';
+                userCommandSpan.textContent = commandText;
+            }
+
+            // Mostra o resultado final e esconde a animação de "carregando".
+            function showResult(result, source = 'text') {
+                loaderContainer.style.display = 'none';
+                resultContainer.style.display = 'block';
+
+                // Verifica se o resultado veio no formato de objeto {display_text, speech_text}.
+                if (result && typeof result === 'object' && result.display_text) {
+                    assistResultSpan.textContent = result.display_text;
+                    lastSpokenResult = result.speech_text;
+                    falarResultado(lastSpokenResult);
+                } else { // Fallback para respostas de erro ou inesperadas.
+                    const fallbackText = result || 'Nenhuma ação executada.';
+                    assistResultSpan.textContent = fallbackText;
+                    lastSpokenResult = fallbackText;
+                    falarResultado(lastSpokenResult);
+                }
+                
+                // O botão "Editar" só faz sentido se a origem for um comando de voz.
+                editBtn.style.display = (source === 'voice' && lastTranscript) ? 'inline-flex' : 'none';
+            }
+            
+            // --- 4. LÓGICA DE GRAVAÇÃO DE VOZ ---
+
+            // Verifica se o navegador suporta a API de gravação.
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Seu navegador não suporta a gravação de áudio.');
                 startBtn.disabled = true;
-                return;
             }
 
-            let mediaRecorder;
-            let audioChunks = [];
-            let isRecording = false;
-
+            // O botão de gravação alterna entre iniciar e parar a gravação.
             startBtn.addEventListener('click', () => {
-                if (isRecording) {
-                    mediaRecorder.stop();
-                } else {
-                    startRecording();
-                }
+                isRecording ? mediaRecorder.stop() : startRecording();
             });
 
             function startRecording() {
+                // Pede permissão para usar o microfone.
                 navigator.mediaDevices.getUserMedia({ audio: true })
                     .then(stream => {
-                        const options = { mimeType: 'audio/webm;codecs=opus' };
-                        mediaRecorder = new MediaRecorder(stream, options);
+                        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
                         
-                        mediaRecorder.ondataavailable = event => {
-                            audioChunks.push(event.data);
-                        };
-
+                        // Evento disparado ao iniciar a gravação.
                         mediaRecorder.onstart = () => {
                             isRecording = true;
-                            startBtn.textContent = 'Parar Gravação';
-                            userCommandSpan.textContent = 'Gravando...';
-                            assistResultSpan.textContent = '...';
+                            startBtn.classList.add('recording'); // Adiciona a classe para a animação.
+                            btnText.textContent = 'Parar Gravação';
                             audioChunks = [];
                         };
                         
+                        // Evento disparado ao parar a gravação.
                         mediaRecorder.onstop = () => {
                             isRecording = false;
-                            startBtn.textContent = 'Enviar Áudio';
-                            startBtn.disabled = true;
-                            userCommandSpan.textContent = 'Enviando...';
+                            startBtn.classList.remove('recording');
+                            btnText.textContent = 'Ouvir Comando';
+                            startBtn.disabled = true; // Desabilita enquanto processa.
 
+                            showLoading('Analisando áudio...');
                             const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-                            sendAudioToServer(audioBlob);
+                            sendAudioToServer(audioBlob); // Envia o áudio para o servidor.
                             
-                            stream.getTracks().forEach(track => track.stop());
+                            stream.getTracks().forEach(track => track.stop()); // Libera o microfone.
                         };
-
+                        
+                        // Coleta os pedaços de áudio enquanto grava.
+                        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                         mediaRecorder.start();
 
                     }).catch(err => {
-                        console.error("Erro ao obter mídia do usuário:", err);
+                        console.error("Erro ao obter mídia:", err);
                         alert(`Erro ao acessar o microfone: ${err.message}`);
                     });
             }
 
+            // Envia o áudio gravado para o endpoint `/recognize` do backend.
             async function sendAudioToServer(audioBlob) {
                 const formData = new FormData();
                 formData.append('audio_data', audioBlob);
 
                 try {
-                    const response = await fetch('/recognize', {
-                        method: 'POST',
-                        body: formData,
-                    });
-
+                    const response = await fetch('/recognize', { method: 'POST', body: formData });
                     const data = await response.json();
 
-                    if (response.ok) {
-                        userCommandSpan.textContent = data.transcript || 'Nenhum texto reconhecido.';
-                        assistResultSpan.textContent = data.result || 'Nenhuma ação executada.';
-                        // O widget irá traduzir o texto que está visível na tela.
-                        // Não há uma chamada direta de API para o widget padrão.
-                    } else {
-                        throw new Error(data.error || 'Erro do servidor');
-                    }
+                    if (!response.ok) throw new Error(data.error || 'Erro do servidor');
+
+                    lastTranscript = data.transcript || 'Nenhum texto reconhecido.';
+                    userCommandSpan.textContent = lastTranscript;
+                    showResult(data.result, 'voice');
 
                 } catch (error) {
                     console.error('Erro ao enviar áudio:', error);
-                    assistResultSpan.textContent = `Erro de comunicação: ${error.message}`;
+                    showResult({ display_text: `Erro: ${error.message}`, speech_text: `Ocorreu um erro: ${error.message}` }, 'voice');
                 } finally {
-                    startBtn.textContent = 'Ouvir Comando';
-                    startBtn.disabled = false;
+                    startBtn.disabled = false; // Reabilita o botão.
                 }
+            }
+
+            // --- 5. LÓGICA DE ENVIO DE TEXTO ---
+
+            // Evento disparado ao submeter o formulário de texto.
+            textForm.addEventListener('submit', async (e) => {
+                e.preventDefault(); // Impede o recarregamento da página.
+                const command = textInput.value;
+                if (!command) return;
+
+                showLoading(command);
+                textInput.disabled = true; // Desabilita enquanto processa.
+                lastTranscript = ''; // Limpa o transcript, pois a origem é texto.
+
+                try {
+                    // Envia o comando para o endpoint `/process` do backend.
+                    const response = await fetch('/process', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command }),
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok) throw new Error(data.error || 'Erro do servidor');
+                    
+                    showResult(data.result, 'text');
+
+                } catch (error) {
+                     console.error('Erro ao enviar texto:', error);
+                    showResult({ display_text: `Erro: ${error.message}`, speech_text: `Ocorreu um erro: ${error.message}` }, 'text');
+                } finally {
+                    textInput.disabled = false; // Reabilita o campo.
+                }
+            });
+
+            // --- 6. LÓGICA DOS BOTÕES DE AÇÃO ---
+
+            // Botão para repetir a última resposta falada.
+            repeatBtn.addEventListener('click', () => {
+                if (lastSpokenResult) {
+                    falarResultado(lastSpokenResult);
+                }
+            });
+
+            // Botão para mover a transcrição da voz para o campo de texto.
+            editBtn.addEventListener('click', () => {
+                if (lastTranscript) {
+                    textInput.value = lastTranscript;
+                    textInput.focus();
+                }
+            });
+
+            // --- 7. LÓGICA DE SÍNTESE DE FALA (TEXT-TO-SPEECH) ---
+
+            function falarResultado(texto) {
+                if (!('speechSynthesis' in window)) {
+                    console.log("Seu navegador não suporta a síntese de fala.");
+                    return;
+                }
+                const utterance = new SpeechSynthesisUtterance(texto);
+                
+                // Lógica aprimorada para selecionar a melhor voz em pt-BR.
+                const voices = window.speechSynthesis.getVoices();
+                let bestVoice = voices.find(v => v.name.includes('Google') && v.lang === 'pt-BR') ||
+                                voices.find(v => v.name.includes('Microsoft') && v.lang === 'pt-BR') ||
+                                voices.find(v => v.lang === 'pt-BR');
+
+                if (bestVoice) {
+                    utterance.voice = bestVoice;
+                    console.log(`Voz selecionada: ${bestVoice.name}`);
+                } else {
+                    utterance.lang = 'pt-BR'; // Fallback se nenhuma for encontrada.
+                    console.log("Nenhuma voz pt-BR encontrada, usando padrão.");
+                }
+                window.speechSynthesis.speak(utterance);
+            }
+
+            // A lista de vozes do navegador às vezes carrega de forma assíncrona.
+            // Este evento garante que a função `falarResultado` tenha acesso à lista de vozes.
+            if ('onvoiceschanged' in window.speechSynthesis) {
+                window.speechSynthesis.onvoiceschanged = falarResultado;
             }
         });
     </script>
